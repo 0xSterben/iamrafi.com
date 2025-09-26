@@ -1,0 +1,369 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Ra-Fi</title>
+    <!-- Google Font -->
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;600&display=swap" rel="stylesheet">
+    <!-- Favicons -->
+    <link href="Ra-Fi icon.ico" rel="icon">
+    <link href="Ra-Fi icon.ico" rel="apple-touch-icon">
+    <link rel="stylesheet" href="GFX1.js">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;700&display=swap" rel="stylesheet">
+    <style>
+        canvas {
+            display: block;
+            position: absolute;
+            top: 0;
+            left: 0;
+            z-index: 1;
+            height: 100%;
+            width: 100%;
+            overflow: scroll;
+        }
+        /* Reset and Global Styles */
+        body, html {
+            margin: 0;
+            padding: 0;
+            font-family: 'Poppins', sans-serif;
+            color: #f0f0f0; /* Lighter shade of white */
+            background-color: #0d0d0d; /* Darker shade of black */
+            overflow-x: scroll;
+        }
+
+        /* Hero Section Styles */
+        .hero-section {
+            height: auto;
+            padding-top: 55px;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            background-color: #0d0d0d;
+            position: relative;
+        }
+
+        .hero-section img {
+            max-height: 800px;
+            height: auto;
+            border-radius: 20px;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
+            animation: fadeIn 1.5s ease-in forwards;
+        }
+
+        /* Content Section Styles */
+        .content-section {
+            padding: 50px;
+            background-color: #0d0d0d;
+            text-align: center;
+            animation: fadeIn 1.5s ease-in forwards;
+        }
+
+        .content-section h1 {
+            font-size: 36px;
+            font-weight: 600;
+            margin-bottom: 20px;
+            color: #f5f5f5;
+        }
+
+        .content-section p {
+            font-size: 18px;
+            line-height: 1.6;
+            max-width: 800px;
+            margin: 0 auto;
+            color: #d9d9d9; /* Lighter shade of white */
+        }
+
+        .code{
+            background: #312f2f;
+            border-radius: 15%;
+            padding: 2px;
+        }
+
+        /* Keyframes for fade-in animation */
+        @keyframes fadeIn {
+            from { opacity: 0; }
+            to { opacity: 1; }
+        }
+
+        /* Responsive Styles */
+        @media (max-width: 850px) {
+            .hero-section img {
+                max-width: 100%;
+                width: 80vw;
+                padding-left: 10px;
+                padding-right: 10px;
+            }
+
+            .content-section h1 {
+                font-size: 20px;
+            }
+
+            .content-section p {
+                font-size: 16px;
+            }
+        }
+
+    </style>
+</head>
+<body>
+    <canvas id="fireworksCanvas"></canvas>
+
+    <!-- Tone.js library for audio generation -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/tone/14.7.77/Tone.js"></script>
+
+    <script>
+
+        const canvas = document.getElementById('fireworksCanvas');
+        const ctx = canvas.getContext('2d');
+        const infoText = document.getElementById('infoText');
+        let cw = window.innerWidth;
+        let ch = window.innerHeight;
+        canvas.width = cw;
+        canvas.height = ch;
+
+        let fireworks = [];
+        let particles = [];
+        let hue = 120; 
+        let timerTick = 0;
+        let timerTotal = 80; 
+        let isMouseDown = false;
+        let mouseX, mouseY;
+        let audioStarted = false;
+
+        let launchSynth, explosionSynth, reverb;
+
+        function setupAudio() {
+
+            reverb = new Tone.Reverb({
+                decay: 4,
+                preDelay: 0.01,
+                wet: 0.3
+            }).toDestination();
+
+            launchSynth = new Tone.NoiseSynth({
+                noise: { type: 'pink' },
+                envelope: {
+                    attack: 0.005,
+                    decay: 0.2,
+                    sustain: 0.1,
+                    release: 0.5,
+                },
+            }).connect(reverb);
+
+            explosionSynth = new Tone.NoiseSynth({
+                noise: { type: 'white' },
+                envelope: {
+                    attack: 0.005,
+                    decay: 0.1,
+                    sustain: 0,
+                    release: 0.2,
+                },
+            }).connect(reverb);
+        }
+
+        function random(min, max) { return Math.random() * (max - min) + min; }
+        function calculateDistance(p1x, p1y, p2x, p2y) {
+            const xDistance = p1x - p2x;
+            const yDistance = p1y - p2y;
+            return Math.sqrt(Math.pow(xDistance, 2) + Math.pow(yDistance, 2));
+        }
+
+        class Particle {
+            constructor(x, y, hue) {
+                this.x = x;
+                this.y = y;
+                this.coords = [];
+                this.coordCount = 5;
+                while (this.coordCount--) { this.coords.push([this.x, this.y]); }
+                this.angle = random(0, Math.PI * 2);
+                this.speed = random(1, 10);
+                this.friction = 0.95;
+                this.gravity = 1;
+                this.hue = hue;
+                this.brightness = random(50, 80);
+                this.alpha = 1;
+                this.decay = random(0.015, 0.03);
+            }
+
+            update() {
+                this.coords.pop();
+                this.coords.unshift([this.x, this.y]);
+                this.speed *= this.friction;
+                this.y += this.gravity;
+                this.x += Math.cos(this.angle) * this.speed;
+                this.y += Math.sin(this.angle) * this.speed;
+                this.alpha -= this.decay;
+                return !(this.alpha <= this.decay);
+            }
+
+            draw() {
+                ctx.beginPath();
+                ctx.moveTo(this.coords[this.coords.length - 1][0], this.coords[this.coords.length - 1][1]);
+                ctx.lineTo(this.x, this.y);
+                ctx.strokeStyle = `hsla(${this.hue}, 100%, ${this.brightness}%, ${this.alpha})`;
+                ctx.stroke();
+            }
+        }
+
+        class Firework {
+            constructor(startX, startY, targetX, targetY) {
+                this.x = startX;
+                this.y = startY;
+                this.startX = startX;
+                this.startY = startY;
+                this.targetX = targetX;
+                this.targetY = targetY;
+                this.distanceToTarget = calculateDistance(startX, startY, targetX, targetY);
+                this.distanceTraveled = 0;
+                this.coords = [];
+                this.coordCount = 3;
+                while (this.coordCount--) { this.coords.push([this.x, this.y]); }
+                this.angle = Math.atan2(targetY - startY, targetX - startX);
+                this.speed = 2;
+                this.acceleration = 1.05;
+                this.brightness = random(50, 70);
+                this.targetRadius = 1;
+
+                if (audioStarted) {
+                    launchSynth.triggerAttackRelease('8n', Tone.now(), random(0.5, 1));
+                }
+            }
+
+            update() {
+                this.coords.pop();
+                this.coords.unshift([this.x, this.y]);
+                if (this.targetRadius < 8) { this.targetRadius += 0.3; } else { this.targetRadius = 1; }
+                this.speed *= this.acceleration;
+                const vx = Math.cos(this.angle) * this.speed;
+                const vy = Math.sin(this.angle) * this.speed;
+                this.distanceTraveled = calculateDistance(this.startX, this.startY, this.x + vx, this.y + vy);
+
+                if (this.distanceTraveled >= this.distanceToTarget) {
+                    createParticles(this.targetX, this.targetY);
+                    return false;
+                } else {
+                    this.x += vx;
+                    this.y += vy;
+                    return true;
+                }
+            }
+
+            draw() {
+                ctx.beginPath();
+                ctx.moveTo(this.coords[this.coords.length - 1][0], this.coords[this.coords.length - 1][1]);
+                ctx.lineTo(this.x, this.y);
+                ctx.strokeStyle = `hsl(${hue}, 100%, ${this.brightness}%)`;
+                ctx.stroke();
+                ctx.beginPath();
+                ctx.arc(this.targetX, this.targetY, this.targetRadius, 0, Math.PI * 2);
+                ctx.stroke();
+            }
+        }
+
+        function createParticles(x, y) {
+
+            if (audioStarted) {
+                explosionSynth.triggerAttackRelease("16n", Tone.now(), random(0.8, 1));
+            }
+            const particleCount = 30;
+            const particleHue = hue + random(-20, 20);
+            for (let i = 0; i < particleCount; i++) {
+                particles.push(new Particle(x, y, particleHue));
+            }
+        }
+
+        function loop() {
+            requestAnimationFrame(loop);
+            hue += 0.5;
+            ctx.globalCompositeOperation = 'destination-out';
+            ctx.fillStyle = 'rgba(0, 0, 0, 0.5)';
+            ctx.fillRect(0, 0, cw, ch);
+            ctx.globalCompositeOperation = 'lighter';
+
+            let i = fireworks.length;
+            while (i--) {
+                if (!fireworks[i].update()) {
+                    fireworks.splice(i, 1);
+                } else {
+                    fireworks[i].draw();
+                }
+            }
+
+            let j = particles.length;
+            while (j--) {
+                if (!particles[j].update()) {
+                    particles.splice(j, 1);
+                } else {
+                    particles[j].draw();
+                }
+            }
+
+            if (timerTick >= timerTotal) {
+                if (!isMouseDown) {
+                    fireworks.push(new Firework(cw / 2, ch, random(0, cw), random(0, ch / 2)));
+                    timerTick = 0;
+                }
+            } else {
+                timerTick++;
+            }
+        }
+
+        function startAudio() {
+            if (audioStarted) return;
+            Tone.start().then(() => {
+                audioStarted = true;
+                setupAudio();
+                infoText.textContent = 'Click or tap to launch a firework';
+
+                document.body.removeEventListener('mousedown', startAudio);
+                document.body.removeEventListener('touchstart', startAudio);
+            });
+        }
+
+        document.body.addEventListener('mousedown', startAudio);
+        document.body.addEventListener('touchstart', startAudio);
+
+        window.addEventListener('resize', () => {
+            cw = window.innerWidth;
+            ch = window.innerHeight;
+            canvas.width = cw;
+            canvas.height = ch;
+        });
+
+        canvas.addEventListener('mousedown', (e) => {
+            e.preventDefault();
+            isMouseDown = true;
+            mouseX = e.pageX;
+            mouseY = e.pageY;
+            fireworks.push(new Firework(cw / 2, ch, mouseX, mouseY));
+        });
+
+        canvas.addEventListener('touchstart', (e) => {
+            e.preventDefault();
+            isMouseDown = true;
+            mouseX = e.touches[0].pageX;
+            mouseY = e.touches[0].pageY;
+            fireworks.push(new Firework(cw / 2, ch, mouseX, mouseY));
+        });
+
+        canvas.addEventListener('mouseup', () => { isMouseDown = false; });
+        canvas.addEventListener('touchend', () => { isMouseDown = false; });
+
+        window.onload = loop;
+    </script>
+    <!-- Hero Section with Image -->
+    <div class="hero-section">
+        <img src="../images/Duo-V9.png" alt="Jhoru Gazi Couple">
+    </div>
+
+    <!-- Content Section -->
+    <div class="content-section">
+        <h1 style="text-align: justify;"> <b style="color: aqua;">মোহাম্মদ হোসেন গাজী পরিবারবর্গ</b> কর্তৃক আয়োজিত <b style="color: rgb(49, 155, 16);">কক্সবাজার ট্যুর ২০২৫</b> এ অংশগ্রহনকারী সকলকে স্বাগত এবং তাদেরকে বিশেষ ভাবে ধন্যবাদ, যাদের উদ্যোগ ও ব্যবস্থাপনায় আজ আমরা প্রায় সকলেই একই ছাদের নিচে একত্রিত হতে পেরেছি।</h1>
+        <h1 style="text-align: right;">— শুভেচ্ছান্তে, কাজল। <img src="../images/Kajal1.svg" alt="Kajal" style="width:8%;size:4px;"></h1>
+    </div>
+
+</body>
+</html>
